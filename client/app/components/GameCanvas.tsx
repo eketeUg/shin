@@ -14,8 +14,12 @@ const GameCanvas = () => {
         if (typeof window !== 'undefined' && !gameRef.current) {
             const config: Phaser.Types.Core.GameConfig = {
                 type: Phaser.AUTO,
-                parent: 'game-container',
-                width: 1266, // 19:9 Aspect Ratio (600 * 2.11)
+                // Determine parent based on device (simplified for now, using a shared ref approach would be better but keeping it simple)
+                // We will use a ref to finding the active container is tricky with CSS hiding.
+                // Let's stick to a single container ID but move it in DOM or styling? 
+                // Better approach: Use a single ID 'game-root' and style IT.
+                parent: 'game-root',
+                width: 1266, 
                 height: 600,
                 scale: {
                     mode: Phaser.Scale.FIT,
@@ -43,11 +47,33 @@ const GameCanvas = () => {
     }, []);
 
     return (
-        <div className="flex items-center justify-center w-full h-full bg-black/50">
+        <div className="fixed inset-0 bg-black flex items-center justify-center overflow-hidden">
+            
+            {/* Game Container */}
             <div 
-                id="game-container" 
-                className="relative w-full h-full md:w-[850px] md:h-[400px] lg:w-[1000px] lg:h-[470px] overflow-hidden md:rounded-xl md:border-4 md:border-gray-800 md:shadow-2xl"
+                id="game-root"
+                className="
+                    relative 
+                    w-full h-full 
+                    md:w-auto md:h-auto md:max-w-5xl md:aspect-[19/9]
+                    md:rounded-xl md:border-4 md:border-shin-dark md:shadow-2xl md:ring-1 md:ring-gray-800
+                    landscape:block portrait:hidden md:portrait:block
+                "
             />
+
+            {/* Portrait Warning (Mobile Only) */}
+            <div className="
+                fixed inset-0 z-50 flex flex-col items-center justify-center 
+                bg-black text-white p-8 text-center
+                landscape:hidden md:hidden
+            ">
+                <div className="animate-pulse">
+                    <h1 className="text-3xl font-black font-cinzel text-shin-red mb-4">ROTATE DEVICE</h1>
+                    <p className="text-gray-400 text-sm mb-8 tracking-widest uppercase"> Landscape Mode Required</p>
+                    <div className="text-6xl text-shin-gold">⟳</div>
+                </div>
+            </div>
+
         </div>
     );
 };
