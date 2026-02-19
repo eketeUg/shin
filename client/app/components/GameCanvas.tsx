@@ -15,16 +15,16 @@ const GameCanvas = () => {
             const config: Phaser.Types.Core.GameConfig = {
                 type: Phaser.AUTO,
                 parent: 'game-container',
-                width: window.innerWidth,
-                height: window.innerHeight,
+                width: 1266, // 19:9 Aspect Ratio (600 * 2.11)
+                height: 600,
                 scale: {
-                    mode: Phaser.Scale.RESIZE,
+                    mode: Phaser.Scale.FIT,
                     autoCenter: Phaser.Scale.CENTER_BOTH,
                 },
                 physics: {
                     default: 'arcade',
                     arcade: {
-                        gravity: { y: 0, x: 0 },
+                        gravity: { y: 600, x: 0 },
                         debug: true,
                     },
                 },
@@ -43,7 +43,12 @@ const GameCanvas = () => {
     }, []);
 
     return (
-        <div id="game-container" className="w-full h-full overflow-hidden" />
+        <div className="flex items-center justify-center w-full h-full bg-black/50">
+            <div 
+                id="game-container" 
+                className="relative w-full h-full md:w-[850px] md:h-[400px] lg:w-[1000px] lg:h-[470px] overflow-hidden md:rounded-xl md:border-4 md:border-gray-800 md:shadow-2xl"
+            />
+        </div>
     );
 };
 

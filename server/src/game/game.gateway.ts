@@ -51,9 +51,16 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           const bot = this.gameService.getPlayer(botId);
           if (!bot) return;
 
-          // Simple random movement
+          // Simple Side-Scroller AI
           const moveX = Math.random() > 0.5 ? 10 : -10;
-          const moveY = Math.random() > 0.5 ? 10 : -10;
+          let moveY = 0; // Gravity handles falling, but simplistic server update needs to be careful
+
+          // Random Jump
+          if (Math.random() > 0.95 && bot.y >= 300) {
+              moveY = -20; 
+          } else if (bot.y < 500) {
+              moveY = 5; // Fake gravity
+          }
           
           this.gameService.movePlayer(botId, bot.x + moveX, bot.y + moveY);
           this.server.emit('playerMoved', { id: botId, x: bot.x, y: bot.y });
@@ -73,8 +80,47 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('playerAttack')
   handlePlayerAttack(client: Socket) {
-    // Logic for attack (hitbox check, etc.)
-    // For now, just broadcast animation
-    this.server.emit('playerAttacked', { id: client.id });
+    const attackerId = client.id;
+    const attacker = this.gameService.getPlayer(attackerId);
+    
+    if (!attacker) return;
+
+    // Broadcast attack animation immediately
+    this.server.emit('playerAttacked', { id: attackerId });
+
+    // Hit Detection Logic
+    const players = this.gameService.getAllPlayers();
+    const ATTACK_RANGE = 70; // pixels
+    const DAMAGE = 10;
+
+    players.forEach(target => {
+        if (target.id === attackerId) return; // Don't hit self
+        if (target.hp <= 0) return; // Don't beat a dead horse
+
+        // Calculate distance
+        const dx = target.x - attacker.x;
+        const dy = target.y - attacker.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance <= ATTACK_RANGE) {
+            // Apply Damage
+            const updatedTarget = this.gameService.damagePlayer(target.id, DAMAGE);
+            
+            if (updatedTarget) {
+                this.server.emit('playerDamaged', {
+                    id: target.id,
+                    hp: updatedTarget.hp,
+                    maxHp: updatedTarget.maxHp,
+                    damage: DAMAGE,
+                    attackerId: attackerId
+                });
+
+                if (updatedTarget.hp <= 0) {
+                   this.server.emit('playerDied', { id: target.id, killerId: attackerId });
+                   // Optional: Respawn logic or Game Over
+                }
+            }
+        }
+    });
   }
 }

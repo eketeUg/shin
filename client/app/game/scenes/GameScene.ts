@@ -17,7 +17,9 @@ export default class GameScene extends Scene {
     }
 
     create() {
-        this.add.image(400, 300, 'sky');
+        const { width, height } = this.scale;
+        const bg = this.add.image(width / 2, height / 2, 'sky');
+        bg.setDisplaySize(width, height); // Stretch to fit 19:9 arena
         
         // Input events
         if (this.input.keyboard) {
@@ -91,15 +93,15 @@ export default class GameScene extends Scene {
                 myPlayer.setFlipX(false);
             }
 
-            if (this.cursors.up.isDown || joystick.up) {
-                velocityY = -speed;
-                moved = true;
-            } else if (this.cursors.down.isDown || joystick.down) {
-                velocityY = speed;
+            // Jump Logic
+            if ((this.cursors.up.isDown || joystick.up) && myPlayer.body?.blocked.down) {
+                velocityY = -450; // Jump force
                 moved = true;
             }
 
-            myPlayer.setVelocity(velocityX, velocityY);
+            // Apply velocity
+            myPlayer.setVelocityX(velocityX);
+            if (velocityY !== 0) myPlayer.setVelocityY(velocityY);
 
             if (moved) {
                 socket.emit('playerInput', { x: myPlayer.x, y: myPlayer.y });

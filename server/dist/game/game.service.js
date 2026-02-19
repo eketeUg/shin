@@ -16,7 +16,9 @@ let GameService = class GameService {
             x: isBot ? 600 : 400,
             y: 300,
             hp: 100,
+            maxHp: 100,
             isBot,
+            score: 0,
         };
         this.players.set(playerId, player);
         return player;
@@ -39,6 +41,14 @@ let GameService = class GameService {
         if (player) {
             player.x = x;
             player.y = y;
+            return player;
+        }
+        return null;
+    }
+    damagePlayer(targetId, amount) {
+        const player = this.players.get(targetId);
+        if (player && player.hp > 0) {
+            player.hp = Math.max(0, player.hp - amount);
             return player;
         }
         return null;
