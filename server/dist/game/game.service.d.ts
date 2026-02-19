@@ -1,0 +1,17 @@
+interface Player {
+    id: string;
+    x: number;
+    y: number;
+    hp: number;
+    isBot?: boolean;
+}
+export declare class GameService {
+    private players;
+    addPlayer(playerId: string, isBot?: boolean): Player;
+    addBot(): Player;
+    removePlayer(playerId: string): void;
+    getPlayer(playerId: string): Player | undefined;
+    getAllPlayers(): Player[];
+    movePlayer(playerId: string, x: number, y: number): Player | null;
+}
+export {};
