@@ -21,6 +21,10 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         blocks: 0
     };
 
+    // Audio states for looping sounds
+    private moveSound: Phaser.Sound.BaseSound | null = null;
+    private idleSound: Phaser.Sound.BaseSound | null = null;
+
     constructor(scene: Scene, x: number, y: number, texture: string, charType: string, id: string, isLocal: boolean = false) {
         super(scene, x, y, texture);
         
@@ -35,6 +39,17 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         this.setCollideWorldBounds(true);
         this.setOrigin(0.5, 0.5);
         this.setScale(2.0); // Make the character bigger
+
+        // Initialize looping sound objects
+        try {
+            this.moveSound = scene.sound.add('move', { loop: true });
+            this.idleSound = scene.sound.add('idle', { loop: true });
+            
+            // Start idle sound by default
+            if (this.idleSound) this.idleSound.play();
+        } catch (e) {
+            console.warn('Audio not loaded yet:', e);
+        }
 
         // Shrink the physics body so players can get closer together
         const body = this.body as Phaser.Physics.Arcade.Body;
@@ -59,7 +74,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
         if (!joystick) return;
 
-        const speed = 250;
+        const speed = 450; // Increased speed for running mechanics
         const jumpForce = -450;
         
         const isAttackingOrBlocking = this.isAttacking || this.isBlocking;
@@ -73,28 +88,48 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
             this.setFlipX(true); // face left
             if (dynamicBody?.onFloor() && !isAttackingOrBlocking) {
                 this.anims.play(`${this.charType}_run`, true);
+                this.playMoveSound();
             }
         } else if (joystick.right) {
             this.setVelocityX(speed);
             this.setFlipX(false); // face right
             if (dynamicBody?.onFloor() && !isAttackingOrBlocking) {
                 this.anims.play(`${this.charType}_run`, true);
+                this.playMoveSound();
             }
         } else {
             this.setVelocityX(0);
             if (dynamicBody?.onFloor() && !isAttackingOrBlocking) {
                 this.anims.play(`${this.charType}_idle`, true);
+                this.playIdleSound();
             }
         }
 
         // Handle Jump
         if (joystick.up && dynamicBody?.onFloor()) {
             this.setVelocityY(jumpForce);
+            try { this.scene.sound.play('jump'); } catch (e) {}
         }
 
         if (!dynamicBody?.onFloor() && !isAttackingOrBlocking) {
             this.anims.play(`${this.charType}_jump`, true);
+            this.stopLoopingSounds();
         }
+    }
+
+    private playMoveSound() {
+        if (this.idleSound?.isPlaying) this.idleSound.stop();
+        if (this.moveSound && !this.moveSound.isPlaying) this.moveSound.play();
+    }
+
+    private playIdleSound() {
+        if (this.moveSound?.isPlaying) this.moveSound.stop();
+        if (this.idleSound && !this.idleSound.isPlaying) this.idleSound.play();
+    }
+
+    private stopLoopingSounds() {
+        if (this.moveSound?.isPlaying) this.moveSound.stop();
+        if (this.idleSound?.isPlaying) this.idleSound.stop();
     }
 
     playAttackAnimation() {
@@ -103,6 +138,12 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         this.isAttacking = true;
         this.hasHit = false; // Reset hit flag for new attack
         this.anims.play(`${this.charType}_attack`);
+        this.stopLoopingSounds();
+        
+        try { 
+            this.scene.sound.play(`${this.charType}_attack`); 
+            this.scene.sound.play(`${this.charType}_effort`); 
+        } catch (e) {}
 
         this.once(`animationcomplete-${this.charType}_attack`, () => {
             this.isAttacking = false;
@@ -137,6 +178,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         if (this.isBlocking) {
             actualDamage = Math.floor(amount * 0.2); // Take 20% chip damage when blocking
             this.stats.blocks += 1; // Track successful blocks
+            try { this.scene.sound.play('hit', { volume: 0.5 }); } catch (e) {}
+        } else {
+            try { this.scene.sound.play('hit'); } catch (e) {}
         }
 
         this.hp -= actualDamage;
@@ -153,7 +197,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
             if (!this.isDead) {
                 this.isDead = true;
                 this.setVelocityX(0); // Stop movement
+                this.stopLoopingSounds();
                 this.anims.play(`${this.charType}_dead`);
+                try { this.scene.sound.play('death'); } catch (e) {}
             }
         }
 

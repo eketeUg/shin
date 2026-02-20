@@ -36,6 +36,21 @@ export class GameScene extends Phaser.Scene {
         this.load.spritesheet('samurai_attack', '/assets/sprites/Samurai/Attack_1.png', { frameWidth: 128, frameHeight: 128 });
         this.load.spritesheet('samurai_shield', '/assets/sprites/Samurai/Shield.png', { frameWidth: 128, frameHeight: 128 });
         this.load.spritesheet('samurai_dead', '/assets/sprites/Samurai/Dead.png', { frameWidth: 128, frameHeight: 128 });
+
+        // Shared Sounds
+        this.load.audio('hit', '/assets/sounds/hit.mp3');
+        this.load.audio('death', '/assets/sounds/death.wav');
+        this.load.audio('victory', '/assets/sounds/victory.mp3');
+        this.load.audio('jump', '/assets/sounds/jump.wav');
+        this.load.audio('move', '/assets/sounds/move.mp3'); // Still mapping if they add it later
+        this.load.audio('idle', '/assets/sounds/idle.mp3');
+        this.load.audio('arena_bgm', '/assets/sounds/arena_bgm.wav');
+
+        // Character Specific Sounds
+        this.load.audio('samurai_attack', '/assets/sounds/Samurai/samurai_attack.wav');
+        this.load.audio('samurai_effort', '/assets/sounds/Samurai/samurai_effoortwav.wav');
+        this.load.audio('shinobi_attack', '/assets/sounds/Shinobi/shinobi_attack.wav');
+        this.load.audio('shinobi_effort', '/assets/sounds/Shinobi/shinobi_effort.wav');
     }
 
     create() {
@@ -167,6 +182,16 @@ export class GameScene extends Phaser.Scene {
             this.blockKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D); // D for Block
         }
 
+        // Start Arena Background Music
+        try {
+            const bgm = this.sound.add('arena_bgm', { loop: true, volume: 0.5 });
+            bgm.play();
+            // Tell React to stop the website BGM
+            window.dispatchEvent(new CustomEvent('arenaStarted'));
+        } catch (e) {
+            console.warn('Arena BGM not loaded');
+        }
+
         // Listen to custom DOM events emitted by ControlsOverlay
         this.setupDOMEventListeners();
     }
@@ -233,6 +258,8 @@ export class GameScene extends Phaser.Scene {
             if (target.hp <= 0 && target.isDead) {
                 // Wait slightly before showing game over so animation starts
                 setTimeout(() => {
+                    try { this.sound.play('victory'); } catch (e) {}
+                    
                     window.dispatchEvent(new CustomEvent('gameOver', {
                         detail: {
                             winner: attacker.id === 'local_player' ? 'Player 1 (Shinobi)' : 'Player 2 (Samurai)',

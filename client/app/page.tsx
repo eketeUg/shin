@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import GameCanvasWrapper from './components/GameCanvasWrapper';
 import LoadingScreen from './components/LoadingScreen';
 import MainMenu from './components/MainMenu';
@@ -8,6 +8,20 @@ import MainMenu from './components/MainMenu';
 export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGameStarted, setIsGameStarted] = useState(false);
+  const bgMusicRef = useRef<HTMLAudioElement>(null);
+  const [isMuted, setIsMuted] = useState(false);
+
+  // Try to play audio when loading completes
+  useEffect(() => {
+    if (!isLoading && bgMusicRef.current) {
+      bgMusicRef.current.play()
+        .then(() => setIsMuted(false)) // Success, audio is playing
+        .catch(e => {
+            console.log('Autoplay prevented by browser:', e);
+            setIsMuted(true); // Browser blocked it, show "UNMUTE" button
+        });
+    }
+  }, [isLoading]);
 
   const handleLoadComplete = () => {
     setIsLoading(false);
@@ -38,6 +52,37 @@ export default function Home() {
             Exit Match
           </button>
         </div>
+      )}
+
+      {/* Website Background Music (Stops when game starts) */}
+      {!isGameStarted && (
+        <>
+          <audio 
+            ref={bgMusicRef} 
+            src="/assets/sounds/website_bgm.wav" 
+            loop 
+            muted={isMuted}
+          />
+          
+          <button 
+            className="absolute top-4 left-4 z-50 bg-black/50 border border-white/10 text-white/80 hover:text-white px-4 py-2 text-xs font-bold rounded transition-colors backdrop-blur-sm"
+            onClick={() => {
+              const audio = bgMusicRef.current;
+              if (audio) {
+                if (audio.muted) {
+                  audio.muted = false;
+                  audio.play().catch(e => console.log('Audio play failed:', e));
+                  setIsMuted(false);
+                } else {
+                  audio.muted = true;
+                  setIsMuted(true);
+                }
+              }
+            }}
+          >
+            {isMuted ? '🔇 UNMUTE' : '🔊 MUTE'}
+          </button>
+        </>
       )}
     </main>
   );
