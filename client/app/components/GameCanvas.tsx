@@ -1,11 +1,10 @@
-import BootScene from '../game/scenes/BootScene';
-import MenuScene from '../game/scenes/MenuScene';
-import GameScene from '../game/scenes/GameScene';
-import UIScene from '../game/scenes/UIScene';
 'use client';
 
 import { useEffect, useRef } from 'react';
 import * as Phaser from 'phaser';
+
+import ControlsOverlay from './ControlsOverlay';
+import { GameScene } from '../game/scenes/GameScene';
 
 const GameCanvas = () => {
     const gameRef = useRef<Phaser.Game | null>(null);
@@ -14,12 +13,9 @@ const GameCanvas = () => {
         if (typeof window !== 'undefined' && !gameRef.current) {
             const config: Phaser.Types.Core.GameConfig = {
                 type: Phaser.AUTO,
-                // Determine parent based on device (simplified for now, using a shared ref approach would be better but keeping it simple)
-                // We will use a ref to finding the active container is tricky with CSS hiding.
-                // Let's stick to a single container ID but move it in DOM or styling? 
-                // Better approach: Use a single ID 'game-root' and style IT.
-                parent: 'game-root',
-                width: 1266, 
+                parent: 'game-root', // Attach the canvas to our container
+                // Determine parent based on device
+                width: 1280, // Fixed resolution (~19.2:9 aspect ratio)
                 height: 600,
                 scale: {
                     mode: Phaser.Scale.FIT,
@@ -29,10 +25,10 @@ const GameCanvas = () => {
                     default: 'arcade',
                     arcade: {
                         gravity: { y: 600, x: 0 },
-                        debug: true,
+                        debug: true, // You can turn this off later
                     },
                 },
-                scene: [BootScene, MenuScene, GameScene, UIScene],
+                scene: [GameScene],
             };
 
             gameRef.current = new Phaser.Game(config);
@@ -49,17 +45,19 @@ const GameCanvas = () => {
     return (
         <div className="fixed inset-0 bg-black flex items-center justify-center overflow-hidden">
             
-            {/* Game Container */}
-            <div 
-                id="game-root"
-                className="
-                    relative 
-                    w-full h-full 
-                    md:w-auto md:h-auto md:max-w-5xl md:aspect-[19/9]
-                    md:rounded-xl md:border-4 md:border-shin-dark md:shadow-2xl md:ring-1 md:ring-gray-800
-                    landscape:block portrait:hidden md:portrait:block
-                "
-            />
+            {/* Main Game Wrapper - Constrains size on Desktop, Full on Mobile */}
+            <div className="
+                relative 
+                w-full h-full 
+                md:w-[1280px] md:h-[600px] 
+                md:max-w-[95vw] md:max-h-[90vh]
+                md:rounded-xl md:border-4 md:border-shin-dark md:shadow-2xl md:ring-1 md:ring-gray-800
+                overflow-hidden
+                landscape:block portrait:hidden md:portrait:block
+            ">
+                <div id="game-root" className="w-full h-full" />
+                <ControlsOverlay />
+            </div>
 
             {/* Portrait Warning (Mobile Only) */}
             <div className="
@@ -73,7 +71,6 @@ const GameCanvas = () => {
                     <div className="text-6xl text-shin-gold">⟳</div>
                 </div>
             </div>
-
         </div>
     );
 };

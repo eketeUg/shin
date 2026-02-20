@@ -22,6 +22,8 @@ body {
   background-attachment: fixed;
 }
 
+
+
 h1, h2, h3, .font-cinzel {
   font-family: var(--font-cinzel), serif;
 }
