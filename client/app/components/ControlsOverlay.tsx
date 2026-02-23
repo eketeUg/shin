@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Sword, ArrowUpToLine, Shield } from 'lucide-react';
 
 const ControlsOverlay = () => {
     // Joystick State
@@ -14,6 +13,9 @@ const ControlsOverlay = () => {
     const [p1Health, setP1Health] = useState({ hp: 100, maxHp: 100 });
     const [p2Health, setP2Health] = useState({ hp: 100, maxHp: 100 });
     
+    // Match Timer State
+    const [matchTime, setMatchTime] = useState(99);
+
     // Game Over State
     const [gameOver, setGameOver] = useState<{winner: string, p1Stats: any, p2Stats: any} | null>(null);
 
@@ -31,12 +33,18 @@ const ControlsOverlay = () => {
             setGameOver(e.detail);
         };
 
+        const handleTimerUpdate = (e: any) => {
+            setMatchTime(e.detail.time);
+        };
+
         window.addEventListener('playerHealthChanged', handleHealthChange);
         window.addEventListener('gameOver', handleGameOver);
+        window.addEventListener('timerUpdate', handleTimerUpdate);
         
         return () => {
             window.removeEventListener('playerHealthChanged', handleHealthChange);
             window.removeEventListener('gameOver', handleGameOver);
+            window.removeEventListener('timerUpdate', handleTimerUpdate);
         };
     }, []);
 
@@ -98,7 +106,11 @@ const ControlsOverlay = () => {
         <div className="absolute inset-0 pointer-events-none select-none">
             {/* Joystick Area (Bottom Left) */}
             <div 
-                className="absolute bottom-4 left-6 w-24 h-24 bg-white/10 rounded-full backdrop-blur-sm pointer-events-auto touch-none flex items-center justify-center border-2 border-white/20"
+                className="absolute w-24 h-24 bg-white/10 rounded-full backdrop-blur-sm pointer-events-auto touch-none flex items-center justify-center border-2 border-white/20"
+                style={{
+                    bottom: 'max(1.5rem, env(safe-area-inset-bottom))',
+                    left: 'max(1.5rem, env(safe-area-inset-left))'
+                }}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
@@ -111,47 +123,63 @@ const ControlsOverlay = () => {
                 />
             </div>
 
-            {/* Action Buttons (Bottom Right) */}
-            <div className="absolute bottom-4 right-6 flex flex-col gap-3 items-end pointer-events-auto">
-
-                {/* ATTACK (Top, Larger, Dark Red) */}
+            {/* Action Buttons (Bottom Right, XABY Diamond Layout - Clockwise starting from Top=X) */}
+            <div 
+                className="absolute w-36 h-36 pointer-events-auto select-none"
+                style={{
+                    bottom: 'max(1.5rem, env(safe-area-inset-bottom))',
+                    right: 'max(1.5rem, env(safe-area-inset-right))'
+                }}
+            >
+                {/* X Button (Top) - Blue */}
                 <button 
-                    className="w-16 h-16 rounded-full bg-red-900/90 border-4 border-white/20 active:scale-90 transition-transform shadow-lg flex items-center justify-center mr-2"
-                    onTouchStart={() => window.dispatchEvent(new CustomEvent('playerAction', { detail: { action: 'attack' } }))}
+                    className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-black/40 border-2 border-blue-500/30 active:scale-90 transition-transform shadow-lg flex items-center justify-center backdrop-blur-sm"
                 >
-                    <Sword className="w-8 h-8 text-white drop-shadow-md" />
+                    <span className="text-blue-500/80 font-bold text-xl drop-shadow-md">X</span>
                 </button>
 
-                {/* Sub-Actions Container (Bottom, Row) */}
-                <div className="flex gap-3">
-                    {/* BLOCK */}
-                    <button 
-                        className="w-12 h-12 rounded-full bg-blue-600/80 border-4 border-white/20 active:scale-90 transition-transform shadow-lg flex items-center justify-center"
-                        onTouchStart={() => window.dispatchEvent(new CustomEvent('playerAction', { detail: { action: 'block' } }))}
-                    >
-                        <Shield className="w-5 h-5 text-white drop-shadow-md" />
-                    </button>
+                {/* A Button (Right) - Red (Attack) */}
+                <button 
+                    className="absolute top-1/2 right-0 -translate-y-1/2 w-14 h-14 rounded-full bg-black/40 border-2 border-red-500/30 active:scale-90 transition-transform shadow-lg flex items-center justify-center backdrop-blur-sm"
+                    onTouchStart={() => window.dispatchEvent(new CustomEvent('playerAction', { detail: { action: 'attack' } }))}
+                >
+                    <span className="text-red-500/80 font-bold text-2xl drop-shadow-md">A</span>
+                </button>
 
-                    {/* JUMP */}
-                    <button 
-                        className="w-12 h-12 rounded-full bg-yellow-500/80 border-4 border-white/20 active:scale-90 transition-transform shadow-lg flex items-center justify-center"
-                        onTouchStart={() => window.dispatchEvent(new CustomEvent('joystickInput', { detail: { up: true } }))}
-                    >
-                        <ArrowUpToLine className="w-5 h-5 text-white drop-shadow-md" />
-                    </button>
-                </div>
+                {/* B Button (Bottom) - Yellow (Jump) */}
+                <button 
+                    className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-black/40 border-2 border-yellow-500/30 active:scale-90 transition-transform shadow-lg flex items-center justify-center backdrop-blur-sm"
+                    onTouchStart={() => window.dispatchEvent(new CustomEvent('joystickInput', { detail: { up: true } }))}
+                >
+                    <span className="text-yellow-500/80 font-bold text-xl drop-shadow-md">B</span>
+                </button>
+
+                {/* Y Button (Left) - Green (Block) */}
+                <button 
+                    className="absolute top-1/2 left-0 -translate-y-1/2 w-12 h-12 rounded-full bg-black/40 border-2 border-green-500/30 active:scale-90 transition-transform shadow-lg flex items-center justify-center backdrop-blur-sm"
+                    onTouchStart={() => window.dispatchEvent(new CustomEvent('playerAction', { detail: { action: 'block' } }))}
+                >
+                    <span className="text-green-500/80 font-bold text-xl drop-shadow-md">Y</span>
+                </button>
             </div>
 
              {/* HUD (Top) */}
-             <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
+             <div 
+                className="absolute w-full flex justify-between items-start pointer-events-none"
+                style={{ 
+                    top: 'max(3rem, env(safe-area-inset-top))', // pushed down slightly so "EXIT MATCH" clears it 
+                    paddingLeft: 'max(1rem, env(safe-area-inset-left))', 
+                    paddingRight: 'max(1rem, env(safe-area-inset-right))' 
+                }}
+             >
                 {/* Player 1 Health */}
                 <div className="flex items-center gap-2">
-                    <div className="w-12 h-12 rounded-full bg-gray-700 border-2 border-white/30"></div>
+                    <div className="w-12 h-12 rounded-full bg-gray-700/50 border-2 border-white/20 backdrop-blur-sm"></div>
                     <div>
-                         <div className="text-white font-bold text-sm shadow-black drop-shadow-md">Player 1</div>
-                         <div className="w-32 h-3 bg-gray-900 rounded-full border border-gray-600 overflow-hidden">
+                         <div className="text-white/80 font-bold text-sm shadow-black drop-shadow-md">Player 1</div>
+                         <div className="w-32 h-3 bg-gray-900/60 rounded-full border border-gray-600/50 overflow-hidden backdrop-blur-sm">
                             <div 
-                                className="h-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-200"
+                                className="h-full bg-gradient-to-r from-green-500/80 to-emerald-400/80 transition-all duration-200"
                                 style={{ width: `${(p1Health.hp / p1Health.maxHp) * 100}%` }}
                             ></div>
                          </div>
@@ -159,18 +187,18 @@ const ControlsOverlay = () => {
                 </div>
                 
                 {/* Match Timer */}
-                <div className="text-white font-cinzel text-xl font-bold drop-shadow-md">
-                    00:00
+                <div className="text-white/90 font-cinzel text-3xl font-bold drop-shadow-md bg-black/30 px-4 py-1 rounded-lg border-2 border-yellow-500/30 backdrop-blur-sm">
+                    {matchTime}
                 </div>
 
                 {/* Player 2 Health */}
                 <div className="flex items-center gap-2 flex-row-reverse">
-                    <div className="w-12 h-12 rounded-full bg-gray-700 border-2 border-white/30"></div>
+                    <div className="w-12 h-12 rounded-full bg-gray-700/50 border-2 border-white/20 backdrop-blur-sm"></div>
                     <div className="text-right">
-                         <div className="text-white font-bold text-sm shadow-black drop-shadow-md">Player 2</div>
-                         <div className="w-32 h-3 bg-gray-900 rounded-full border border-gray-600 overflow-hidden flex justify-end">
+                         <div className="text-white/80 font-bold text-sm shadow-black drop-shadow-md">Player 2</div>
+                         <div className="w-32 h-3 bg-gray-900/60 rounded-full border border-gray-600/50 overflow-hidden flex justify-end backdrop-blur-sm">
                             <div 
-                                className="h-full bg-gradient-to-l from-red-500 to-orange-400 transition-all duration-200"
+                                className="h-full bg-gradient-to-l from-red-500/80 to-orange-400/80 transition-all duration-200"
                                 style={{ width: `${(p2Health.hp / p2Health.maxHp) * 100}%` }}
                             ></div>
                          </div>

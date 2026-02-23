@@ -25,6 +25,10 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     private moveSound: Phaser.Sound.BaseSound | null = null;
     private idleSound: Phaser.Sound.BaseSound | null = null;
 
+    // Combo System
+    private comboStep: number = 1;
+    private lastAttackTime: number = 0;
+
     constructor(scene: Scene, x: number, y: number, texture: string, charType: string, id: string, isLocal: boolean = false) {
         super(scene, x, y, texture);
         
@@ -135,9 +139,17 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     playAttackAnimation() {
         if (this.isAttacking || this.isBlocking || this.isDead) return; // Don't interrupt actions
 
+        const now = this.scene.time.now;
+        if (now - this.lastAttackTime > 800) {
+            this.comboStep = 1; // Reset combo if too much time has passed
+        } else {
+            this.comboStep = (this.comboStep % 3) + 1; // Cycle 1 -> 2 -> 3 -> 1
+        }
+        this.lastAttackTime = now;
+
         this.isAttacking = true;
         this.hasHit = false; // Reset hit flag for new attack
-        this.anims.play(`${this.charType}_attack`);
+        this.anims.play(`${this.charType}_attack_${this.comboStep}`);
         this.stopLoopingSounds();
         
         try { 
@@ -145,7 +157,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
             this.scene.sound.play(`${this.charType}_effort`); 
         } catch (e) {}
 
-        this.once(`animationcomplete-${this.charType}_attack`, () => {
+        this.once(`animationcomplete-${this.charType}_attack_${this.comboStep}`, () => {
             this.isAttacking = false;
             const dynamicBody = this.body as Phaser.Physics.Arcade.Body;
             if (dynamicBody?.onFloor() && !this.isDead) {

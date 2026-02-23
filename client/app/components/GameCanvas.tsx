@@ -5,17 +5,32 @@ import * as Phaser from 'phaser';
 
 import ControlsOverlay from './ControlsOverlay';
 import { GameScene } from '../game/scenes/GameScene';
+import Preloader from '../game/scenes/Preloader';
 
 const GameCanvas = () => {
     const gameRef = useRef<Phaser.Game | null>(null);
+
+    useEffect(() => {
+        // Prevent strictly all scroll/bounce logic on mobile browsers
+        const preventDefault = (e: TouchEvent) => {
+            if (e.touches.length > 1) e.preventDefault(); // Prevent pinch zoom
+            // Prevent scrolling unless it's on an element we explicitly want to scroll
+            e.preventDefault();
+        };
+        
+        document.addEventListener('touchmove', preventDefault, { passive: false });
+        
+        return () => {
+            document.removeEventListener('touchmove', preventDefault);
+        };
+    }, []);
 
     useEffect(() => {
         if (typeof window !== 'undefined' && !gameRef.current) {
             const config: Phaser.Types.Core.GameConfig = {
                 type: Phaser.AUTO,
                 parent: 'game-root', // Attach the canvas to our container
-                // Determine parent based on device
-                width: 1280, // Fixed resolution (~19.2:9 aspect ratio)
+                width: 1280, 
                 height: 600,
                 scale: {
                     mode: Phaser.Scale.FIT,
@@ -28,13 +43,27 @@ const GameCanvas = () => {
                         debug: true, // You can turn this off later
                     },
                 },
-                scene: [GameScene],
             };
 
             gameRef.current = new Phaser.Game(config);
+
+            // Manually add scenes and only start Preloader immediately
+            gameRef.current.scene.add('Preloader', Preloader, true);
+            gameRef.current.scene.add('GameScene', GameScene, false);
         }
 
+        const handleStartGame = (e: Event) => {
+            const customEvent = e as CustomEvent;
+            if (gameRef.current) {
+                // Pass the selection details (mode, p1, p2) to the GameScene's init() method
+                gameRef.current.scene.start('GameScene', customEvent.detail);
+            }
+        };
+
+        window.addEventListener('startGameScene', handleStartGame);
+
         return () => {
+            window.removeEventListener('startGameScene', handleStartGame);
             if (gameRef.current) {
                 gameRef.current.destroy(true);
                 gameRef.current = null;

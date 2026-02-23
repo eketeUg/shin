@@ -10,47 +10,25 @@ export class GameScene extends Phaser.Scene {
     private attackKey!: Phaser.Input.Keyboard.Key;
     private blockKey!: Phaser.Input.Keyboard.Key;
     
-    // Joystick state
+    // Joystick state for Player 1 (local player)
     private moveInput = { left: false, right: false, up: false, down: false };
+
+    private matchTimer: number = 99;
+    private timerEvent!: Phaser.Time.TimerEvent;
+
+    private gameMode: 'PVP' | 'PVE' = 'PVP';
+    private p1CharType: string = 'shinobi';
+    private p2CharType: string = 'samurai';
+    private lastAIAttackTime: number = 0;
 
     constructor() {
         super({ key: 'GameScene' });
     }
 
-    preload() {
-        // Load background
-        this.load.image('bg', '/assets/shin_bg.png');
-
-        // Load Shinobi Sprites (Assume frames are 128x128)
-        this.load.spritesheet('shinobi_idle', '/assets/sprites/Shinobi/Idle.png', { frameWidth: 128, frameHeight: 128 });
-        this.load.spritesheet('shinobi_run', '/assets/sprites/Shinobi/Run.png', { frameWidth: 128, frameHeight: 128 });
-        this.load.spritesheet('shinobi_jump', '/assets/sprites/Shinobi/Jump.png', { frameWidth: 128, frameHeight: 128 });
-        this.load.spritesheet('shinobi_attack', '/assets/sprites/Shinobi/Attack_1.png', { frameWidth: 128, frameHeight: 128 });
-        this.load.spritesheet('shinobi_shield', '/assets/sprites/Shinobi/Shield.png', { frameWidth: 128, frameHeight: 128 });
-        this.load.spritesheet('shinobi_dead', '/assets/sprites/Shinobi/Dead.png', { frameWidth: 128, frameHeight: 128 });
-
-        // Load Samurai Sprites (Assume frames are 128x128)
-        this.load.spritesheet('samurai_idle', '/assets/sprites/Samurai/Idle.png', { frameWidth: 128, frameHeight: 128 });
-        this.load.spritesheet('samurai_run', '/assets/sprites/Samurai/Run.png', { frameWidth: 128, frameHeight: 128 });
-        this.load.spritesheet('samurai_jump', '/assets/sprites/Samurai/Jump.png', { frameWidth: 128, frameHeight: 128 });
-        this.load.spritesheet('samurai_attack', '/assets/sprites/Samurai/Attack_1.png', { frameWidth: 128, frameHeight: 128 });
-        this.load.spritesheet('samurai_shield', '/assets/sprites/Samurai/Shield.png', { frameWidth: 128, frameHeight: 128 });
-        this.load.spritesheet('samurai_dead', '/assets/sprites/Samurai/Dead.png', { frameWidth: 128, frameHeight: 128 });
-
-        // Shared Sounds
-        this.load.audio('hit', '/assets/sounds/hit.mp3');
-        this.load.audio('death', '/assets/sounds/death.wav');
-        this.load.audio('victory', '/assets/sounds/victory.mp3');
-        this.load.audio('jump', '/assets/sounds/jump.wav');
-        this.load.audio('move', '/assets/sounds/move.mp3'); // Still mapping if they add it later
-        this.load.audio('idle', '/assets/sounds/idle.mp3');
-        this.load.audio('arena_bgm', '/assets/sounds/arena_bgm.wav');
-
-        // Character Specific Sounds
-        this.load.audio('samurai_attack', '/assets/sounds/Samurai/samurai_attack.wav');
-        this.load.audio('samurai_effort', '/assets/sounds/Samurai/samurai_effoortwav.wav');
-        this.load.audio('shinobi_attack', '/assets/sounds/Shinobi/shinobi_attack.wav');
-        this.load.audio('shinobi_effort', '/assets/sounds/Shinobi/shinobi_effort.wav');
+    init(data: { mode?: 'PVP' | 'PVE', p1?: string, p2?: string }) {
+        if (data.mode) this.gameMode = data.mode;
+        if (data.p1) this.p1CharType = data.p1;
+        if (data.p2) this.p2CharType = data.p2;
     }
 
     create() {
@@ -64,108 +42,47 @@ export class GameScene extends Phaser.Scene {
         this.background.setAlpha(0.3); // Make the background quite transparent to see character better
 
         // Add a dark floor overlay to visually represent the UI area at the bottom
-        const uiHeight = 180;
+        const uiHeight = 180; 
         const floorOverlay = this.add.rectangle(width / 2, height - (uiHeight / 2), width, uiHeight, 0x000000, 0.8);
         floorOverlay.setDepth(10); // Ensure it renders above the background
 
-        // Setup Shinobi Animations
-        this.anims.create({
-            key: 'shinobi_idle',
-            frames: 'shinobi_idle',
-            frameRate: 8,
-            repeat: -1
-        });
+        // Dynamically create animations for all 10 characters
+        const characters = [
+            'Fighter', 'Knight_1', 'Kunoichi', 'Ninja_Monk', 'Ninja_Peasant',
+            'Samurai', 'Samurai_1', 'Samurai_Archer', 'Samurai_Commander', 'Shinobi'
+        ];
 
-        this.anims.create({
-            key: 'shinobi_run',
-            frames: 'shinobi_run',
-            frameRate: 12,
-            repeat: -1
-        });
+        characters.forEach(char => {
+            const prefix = char.toLowerCase();
 
-        this.anims.create({
-            key: 'shinobi_jump',
-            frames: 'shinobi_jump',
-            frameRate: 12,
-            repeat: 0
-        });
-
-        this.anims.create({
-            key: 'shinobi_attack',
-            frames: 'shinobi_attack',
-            frameRate: 15,
-            repeat: 0
-        });
-
-        this.anims.create({
-            key: 'shinobi_block',
-            frames: 'shinobi_shield',
-            frameRate: 12,
-            repeat: 0
-        });
-
-        this.anims.create({
-            key: 'shinobi_dead',
-            frames: 'shinobi_dead',
-            frameRate: 8,
-            repeat: 0
-        });
-
-        // Setup Samurai Animations
-        this.anims.create({
-            key: 'samurai_idle',
-            frames: 'samurai_idle',
-            frameRate: 8,
-            repeat: -1
-        });
-
-        this.anims.create({
-            key: 'samurai_run',
-            frames: 'samurai_run',
-            frameRate: 12,
-            repeat: -1
-        });
-
-        this.anims.create({
-            key: 'samurai_jump',
-            frames: 'samurai_jump',
-            frameRate: 12,
-            repeat: 0
-        });
-
-        this.anims.create({
-            key: 'samurai_attack',
-            frames: 'samurai_attack',
-            frameRate: 15,
-            repeat: 0
-        });
-
-        this.anims.create({
-            key: 'samurai_block',
-            frames: 'samurai_shield',
-            frameRate: 12,
-            repeat: 0
-        });
-
-        this.anims.create({
-            key: 'samurai_dead',
-            frames: 'samurai_dead',
-            frameRate: 8,
-            repeat: 0
+            this.anims.create({ key: `${prefix}_idle`, frames: `${prefix}_idle`, frameRate: 8, repeat: -1 });
+            this.anims.create({ key: `${prefix}_run`, frames: `${prefix}_run`, frameRate: 12, repeat: -1 });
+            
+            // Assuming most jumps have ~12 frames
+            this.anims.create({ key: `${prefix}_jump`, frames: this.anims.generateFrameNumbers(`${prefix}_jump`, { start: 0, end: 11 }), frameRate: 15, repeat: 0 });
+            
+            // Combo attacks (assuming ~5 frames)
+            this.anims.create({ key: `${prefix}_attack_1`, frames: this.anims.generateFrameNumbers(`${prefix}_attack_1`, { start: 0, end: 4 }), frameRate: 15, repeat: 0 });
+            this.anims.create({ key: `${prefix}_attack_2`, frames: this.anims.generateFrameNumbers(`${prefix}_attack_2`, { start: 0, end: 4 }), frameRate: 15, repeat: 0 });
+            this.anims.create({ key: `${prefix}_attack_3`, frames: this.anims.generateFrameNumbers(`${prefix}_attack_3`, { start: 0, end: 4 }), frameRate: 15, repeat: 0 });
+            
+            // Block and Dead
+            this.anims.create({ key: `${prefix}_block`, frames: `${prefix}_shield`, frameRate: 12, repeat: 0 });
+            this.anims.create({ key: `${prefix}_dead`, frames: `${prefix}_dead`, frameRate: 8, repeat: 0 });
         });
 
         // Set the world bounds so the floor sits above the UI controls (approx 150px from bottom)
         this.physics.world.setBounds(0, 0, width, height - uiHeight);
 
         // Initialize Player entities
-        // Player 1 (Shinobi)
-        this.player = new Player(this, width / 2 - 200, height - uiHeight - 100, 'shinobi_idle', 'shinobi', 'local_player', true);
-        this.player.anims.play('shinobi_idle', true); // Play default idle animation
+        // Player 1
+        this.player = new Player(this, width / 2 - 200, height - uiHeight - 100, `${this.p1CharType}_idle`, this.p1CharType, 'local_player', true);
+        this.player.anims.play(`${this.p1CharType}_idle`, true); // Play default idle animation
         
-        // Player 2 (Samurai)
-        this.player2 = new Player(this, width / 2 + 200, height - uiHeight - 100, 'samurai_idle', 'samurai', 'remote_player', false);
+        // Player 2
+        this.player2 = new Player(this, width / 2 + 200, height - uiHeight - 100, `${this.p2CharType}_idle`, this.p2CharType, 'remote_player', false);
         this.player2.setFlipX(true); // Face left
-        this.player2.anims.play('samurai_idle', true);
+        this.player2.anims.play(`${this.p2CharType}_idle`, true);
 
         // Add rudimentary collision between players (pushing apart)
         this.physics.add.collider(this.player, this.player2);
@@ -192,8 +109,49 @@ export class GameScene extends Phaser.Scene {
             console.warn('Arena BGM not loaded');
         }
 
+        // Initialize Match Timer
+        this.timerEvent = this.time.addEvent({
+            delay: 1000, // 1 second
+            callback: this.updateTimer,
+            callbackScope: this,
+            loop: true
+        });
+        window.dispatchEvent(new CustomEvent('timerUpdate', { detail: { time: this.matchTimer } }));
+
         // Listen to custom DOM events emitted by ControlsOverlay
         this.setupDOMEventListeners();
+    }
+
+    private updateTimer() {
+        if (this.matchTimer > 0 && !this.player.isDead && !this.player2.isDead) {
+            this.matchTimer--;
+            window.dispatchEvent(new CustomEvent('timerUpdate', { detail: { time: this.matchTimer } }));
+
+            if (this.matchTimer === 0) {
+                this.timerEvent.remove();
+                this.handleTimeUp();
+            }
+        }
+    }
+
+    private handleTimeUp() {
+        // Determine Winner based on Health
+        let winnerStr = 'DRAW - TIME UP';
+        if (this.player.hp > this.player2.hp) {
+            winnerStr = `Player 1 (${this.p1CharType.toUpperCase()}) WINS ON TIME`;
+        } else if (this.player2.hp > this.player.hp) {
+            winnerStr = `${this.gameMode === 'PVE' ? 'CPU' : 'Player 2'} (${this.p2CharType.toUpperCase()}) WINS ON TIME`;
+        }
+
+        try { this.sound.play('victory'); } catch (e) {}
+
+        window.dispatchEvent(new CustomEvent('gameOver', {
+            detail: {
+                winner: winnerStr,
+                p1Stats: this.player.stats,
+                p2Stats: this.player2.stats
+            }
+        }));
     }
 
     update() {
@@ -201,23 +159,63 @@ export class GameScene extends Phaser.Scene {
             this.player.update(undefined, this.moveInput);
         }
         
-        // Keyboard logic for player 2
         if (this.player2) {
-            const p2Joystick = {
-                left: this.cursors?.left.isDown || false,
-                right: this.cursors?.right.isDown || false,
-                up: this.cursors?.up.isDown || false,
-                down: this.cursors?.down.isDown || false
-            };
-            
-            this.player2.update(undefined, p2Joystick);
+            if (this.gameMode === 'PVP') {
+                // Keyboard logic for local Player 2
+                const p2Joystick = {
+                    left: this.cursors?.left.isDown || false,
+                    right: this.cursors?.right.isDown || false,
+                    up: this.cursors?.up.isDown || false,
+                    down: this.cursors?.down.isDown || false
+                };
+                
+                this.player2.update(undefined, p2Joystick);
 
-            if (Phaser.Input.Keyboard.JustDown(this.aKey) || Phaser.Input.Keyboard.JustDown(this.attackKey)) {
-                this.player2.playAttackAnimation();
-            } else if (Phaser.Input.Keyboard.JustDown(this.blockKey)) {
-                this.player2.playBlockAnimation();
+                if (Phaser.Input.Keyboard.JustDown(this.aKey) || Phaser.Input.Keyboard.JustDown(this.attackKey)) {
+                    this.player2.playAttackAnimation();
+                } else if (Phaser.Input.Keyboard.JustDown(this.blockKey)) {
+                    this.player2.playBlockAnimation();
+                }
+            } else if (this.gameMode === 'PVE') {
+                this.updateAI();
             }
         }
+    }
+
+    private updateAI() {
+        if (!this.player || !this.player2 || this.player.isDead || this.player2.isDead || this.matchTimer <= 0) return;
+
+        const p1X = this.player.x;
+        const p2X = this.player2.x;
+        const distance = Math.abs(p1X - p2X);
+
+        // CPU Move Input
+        let aiJoystick = { left: false, right: false, up: false, down: false };
+        const now = this.time.now;
+
+        // Simple chase logic
+        if (distance > 70) {
+            if (p2X > p1X) {
+                aiJoystick.left = true;
+            } else {
+                aiJoystick.right = true;
+            }
+        } else {
+            // Close enough to attack or block
+            if (now - this.lastAIAttackTime > 1000) {
+                // Randomly decide action
+                const rand = Math.random();
+                if (rand > 0.3) {
+                    this.player2.playAttackAnimation();
+                } else {
+                    this.player2.playBlockAnimation();
+                }
+                this.lastAIAttackTime = now;
+            }
+        }
+
+        // Apply movement/physics payload
+        this.player2.update(undefined, aiJoystick);
     }
 
     private setupDOMEventListeners() {
@@ -262,7 +260,7 @@ export class GameScene extends Phaser.Scene {
                     
                     window.dispatchEvent(new CustomEvent('gameOver', {
                         detail: {
-                            winner: attacker.id === 'local_player' ? 'Player 1 (Shinobi)' : 'Player 2 (Samurai)',
+                            winner: attacker.id === 'local_player' ? `Player 1 (${this.p1CharType.toUpperCase()})` : `${this.gameMode === 'PVE' ? 'CPU' : 'Player 2'} (${this.p2CharType.toUpperCase()})`,
                             p1Stats: this.player.stats,
                             p2Stats: this.player2.stats
                         }

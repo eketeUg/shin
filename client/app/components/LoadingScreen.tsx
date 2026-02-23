@@ -10,19 +10,22 @@ const LoadingScreen = ({ onComplete }: LoadingScreenProps) => {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setProgress((prev) => {
-        const next = prev + Math.random() * 10;
-        if (next >= 100) {
-          clearInterval(timer);
-          setTimeout(onComplete, 500); // Slight delay at 100%
-          return 100;
-        }
-        return next;
-      });
-    }, 200);
+    const handleProgress = (e: any) => {
+      setProgress(e.detail.progress * 100);
+    };
 
-    return () => clearInterval(timer);
+    const handleComplete = () => {
+      setProgress(100);
+      setTimeout(onComplete, 500); // Slight delay at 100%
+    };
+
+    window.addEventListener('phaserLoadProgress', handleProgress);
+    window.addEventListener('phaserLoadComplete', handleComplete);
+
+    return () => {
+      window.removeEventListener('phaserLoadProgress', handleProgress);
+      window.removeEventListener('phaserLoadComplete', handleComplete);
+    };
   }, [onComplete]);
 
   return (

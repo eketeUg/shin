@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cinzel, Inter } from "next/font/google"; // Changed from Geist
 import "./globals.css";
+import Providers from "./components/Providers";
 
 // Configure Cinzel (Serif / Display)
 const cinzel = Cinzel({
@@ -21,6 +22,14 @@ export const metadata: Metadata = {
   description: "A 2D PvP fighting game with Igbo folklore style.",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#000000",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,9 +38,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${cinzel.variable} ${inter.variable} antialiased`}
+        className={`${inter.variable} ${cinzel.variable} antialiased`}
       >
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

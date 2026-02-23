@@ -13,6 +13,10 @@ body {
   color: var(--foreground);
   font-family: var(--font-inter), sans-serif;
   overflow: hidden; /* Prevent scrolling during game */
+  touch-action: none; /* Prevent pull-to-refresh and swipe navigation */
+  user-select: none; /* Prevent text selection on long press */
+  -webkit-user-select: none;
+  -webkit-touch-callout: none; /* Prevent context menu on long press */
   
   /* Global Watermark */
   background-image: url('/assets/shin_bg.png');
