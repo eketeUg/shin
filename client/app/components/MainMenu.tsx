@@ -112,8 +112,9 @@ const MainMenu = ({ onStart, onWatchLive, isMuted, onToggleMute }: MainMenuProps
   useEffect(() => {
     let newSocket: Socket | null = null;
     if (activeModal === 'lobby') {
-       const wsUrl = typeof window !== 'undefined' ? `http://${window.location.hostname}:3001` : 'http://localhost:3001';
-       newSocket = io(process.env.NEXT_PUBLIC_SERVER_URL || wsUrl);
+       const wsUrl = process.env.NEXT_PUBLIC_SERVER_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:3001` : 'http://localhost:3001');
+       const customPath = wsUrl.includes('/shin') ? '/shin/socket.io' : '/socket.io';
+       newSocket = io(wsUrl, { path: customPath });
        setSocket(newSocket);
 
        newSocket.on('connect', () => {

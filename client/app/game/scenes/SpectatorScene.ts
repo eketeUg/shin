@@ -111,8 +111,9 @@ export class SpectatorScene extends Phaser.Scene {
 
         // Connect to Server as Spectator
         try {
-            const wsUrl = typeof window !== 'undefined' ? `http://${window.location.hostname}:3001` : 'http://localhost:3001';
-            this.socket = io(process.env.NEXT_PUBLIC_SERVER_URL || wsUrl);
+            const wsUrl = process.env.NEXT_PUBLIC_SERVER_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:3001` : 'http://localhost:3001');
+            const customPath = wsUrl.includes('/shin') ? '/shin/socket.io' : '/socket.io';
+            this.socket = io(wsUrl, { path: customPath });
             
             this.socket.on('connect', () => {
                 console.log(`Connected. Joining match ${this.matchId} as Spectator...`);
