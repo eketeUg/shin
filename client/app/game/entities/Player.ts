@@ -57,8 +57,16 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
         // Shrink the physics body so players can get closer together
         const body = this.body as Phaser.Physics.Arcade.Body;
-        body.setSize(40, 90); // Narrow width, reasonable height
-        body.setOffset(44, 38); // Center the body within the 128x128 sprite frame
+        
+        if (charType === 'ninja_monk' || charType === 'ninja_peasant') {
+            // These characters have 96x96 sprite frames
+            body.setSize(30, 68); 
+            body.setOffset(33, 28); // Bottom aligned: 28 + 68 = 96
+        } else {
+            // Standard 128x128 sprite frames
+            body.setSize(40, 90); 
+            body.setOffset(44, 38); // Bottom aligned: 38 + 90 = 128
+        }
 
         // Create Attack Hitbox (in front of player)
         this.attackHitbox = scene.add.zone(x, y, 60, 100);
@@ -86,33 +94,41 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         // Cast body to dynamic body to access onFloor()
         const dynamicBody = this.body as Phaser.Physics.Arcade.Body;
         
-        // Handle horizontal movement
-        if (joystick.left) {
-            this.setVelocityX(-speed);
-            this.setFlipX(true); // face left
-            if (dynamicBody?.onFloor() && !isAttackingOrBlocking) {
-                this.anims.play(`${this.charType}_run`, true);
-                this.playMoveSound();
+        if (isAttackingOrBlocking) {
+            // Stop horizontal movement while attacking or blocking
+            if (dynamicBody?.onFloor()) {
+                this.setVelocityX(0);
             }
-        } else if (joystick.right) {
-            this.setVelocityX(speed);
-            this.setFlipX(false); // face right
-            if (dynamicBody?.onFloor() && !isAttackingOrBlocking) {
-                this.anims.play(`${this.charType}_run`, true);
-                this.playMoveSound();
-            }
+            // Do not process joystick for walking or jumping
         } else {
-            this.setVelocityX(0);
-            if (dynamicBody?.onFloor() && !isAttackingOrBlocking) {
-                this.anims.play(`${this.charType}_idle`, true);
-                this.playIdleSound();
+            // Handle horizontal movement
+            if (joystick.left) {
+                this.setVelocityX(-speed);
+                this.setFlipX(true); // face left
+                if (dynamicBody?.onFloor()) {
+                    this.anims.play(`${this.charType}_run`, true);
+                    this.playMoveSound();
+                }
+            } else if (joystick.right) {
+                this.setVelocityX(speed);
+                this.setFlipX(false); // face right
+                if (dynamicBody?.onFloor()) {
+                    this.anims.play(`${this.charType}_run`, true);
+                    this.playMoveSound();
+                }
+            } else {
+                this.setVelocityX(0);
+                if (dynamicBody?.onFloor()) {
+                    this.anims.play(`${this.charType}_idle`, true);
+                    this.playIdleSound();
+                }
             }
-        }
 
-        // Handle Jump
-        if (joystick.up && dynamicBody?.onFloor()) {
-            this.setVelocityY(jumpForce);
-            try { this.scene.sound.play('jump'); } catch (e) {}
+            // Handle Jump
+            if (joystick.up && dynamicBody?.onFloor()) {
+                this.setVelocityY(jumpForce);
+                try { this.scene.sound.play('jump'); } catch (e) {}
+            }
         }
 
         if (!dynamicBody?.onFloor() && !isAttackingOrBlocking) {
@@ -143,21 +159,34 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         if (now - this.lastAttackTime > 800) {
             this.comboStep = 1; // Reset combo if too much time has passed
         } else {
-            this.comboStep = (this.comboStep % 3) + 1; // Cycle 1 -> 2 -> 3 -> 1
+            this.comboStep++;
         }
-        this.lastAttackTime = now;
 
+        let animKey = `${this.charType}_attack_${this.comboStep}`;
+        // If the combo step goes beyond what this character has, reset to 1
+        if (!this.scene.anims.exists(animKey)) {
+            this.comboStep = 1;
+            animKey = `${this.charType}_attack_1`;
+        }
+        
+        // Failsafe in case the character lacks attack animations entirely
+        if (!this.scene.anims.exists(animKey)) {
+            return;
+        }
+
+        this.lastAttackTime = now;
         this.isAttacking = true;
         this.hasHit = false; // Reset hit flag for new attack
-        this.anims.play(`${this.charType}_attack_${this.comboStep}`);
+        this.anims.play(animKey);
         this.stopLoopingSounds();
         
         try { 
             this.scene.sound.play(`${this.charType}_attack`); 
             this.scene.sound.play(`${this.charType}_effort`); 
+            window.dispatchEvent(new CustomEvent('playerAudio', { detail: { type: 'attack', charType: this.charType } }));
         } catch (e) {}
 
-        this.once(`animationcomplete-${this.charType}_attack_${this.comboStep}`, () => {
+        this.once(`animationcomplete-${animKey}`, () => {
             this.isAttacking = false;
             const dynamicBody = this.body as Phaser.Physics.Arcade.Body;
             if (dynamicBody?.onFloor() && !this.isDead) {
@@ -181,6 +210,16 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         });
     }
 
+    resetState() {
+        this.isAttacking = false;
+        this.isBlocking = false;
+        this.hasHit = false;
+        this.isDead = false;
+        this.comboStep = 1;
+        this.clearTint();
+        this.stopLoopingSounds();
+    }
+
     takeDamage(amount: number): number {
         if (this.isDead) return 0;
 
@@ -188,11 +227,17 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
         // Mitigate damage if blocking
         if (this.isBlocking) {
-            actualDamage = Math.floor(amount * 0.2); // Take 20% chip damage when blocking
+            actualDamage = 0; // Take 0 damage when blocking
             this.stats.blocks += 1; // Track successful blocks
-            try { this.scene.sound.play('hit', { volume: 0.5 }); } catch (e) {}
+            try { 
+                this.scene.sound.play('hit', { volume: 0.5 }); 
+                window.dispatchEvent(new CustomEvent('playerAudio', { detail: { type: 'block_hit', id: this.id } }));
+            } catch (e) {}
         } else {
-            try { this.scene.sound.play('hit'); } catch (e) {}
+            try { 
+                this.scene.sound.play('hit'); 
+                window.dispatchEvent(new CustomEvent('playerAudio', { detail: { type: 'hit', id: this.id } }));
+            } catch (e) {}
         }
 
         this.hp -= actualDamage;
@@ -211,7 +256,10 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
                 this.setVelocityX(0); // Stop movement
                 this.stopLoopingSounds();
                 this.anims.play(`${this.charType}_dead`);
-                try { this.scene.sound.play('death'); } catch (e) {}
+                try { 
+                    this.scene.sound.play('death'); 
+                    window.dispatchEvent(new CustomEvent('playerAudio', { detail: { type: 'death', id: this.id } }));
+                } catch (e) {}
             }
         }
 

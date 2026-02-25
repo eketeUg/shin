@@ -34,6 +34,9 @@ export default class Preloader extends Phaser.Scene {
         Object.entries(charConfig).forEach(([char, size]) => {
             const keyPrefix = char.toLowerCase();
             actions.forEach(action => {
+                // Skip missing Attack_3 for Ninja_Peasant to prevent the preloader from hanging on a 404
+                if (char === 'Ninja_Peasant' && action === 'Attack_3') return;
+
                 this.load.spritesheet(
                     `${keyPrefix}_${action.toLowerCase()}`, 
                     `/assets/sprites/${char}/${action}.png`, 
@@ -41,6 +44,9 @@ export default class Preloader extends Phaser.Scene {
                 );
             });
         });
+
+        // Background Image
+        this.load.image('bg', '/assets/shin_bg.png');
 
         // Shared Sounds
         this.load.audio('hit', '/assets/sounds/hit.mp3');

@@ -11,11 +11,9 @@ const GameCanvas = () => {
     const gameRef = useRef<Phaser.Game | null>(null);
 
     useEffect(() => {
-        // Prevent strictly all scroll/bounce logic on mobile browsers
+        // Prevent pinch zoom, but allow single-finger scrolling so users can hide the browser address bar
         const preventDefault = (e: TouchEvent) => {
-            if (e.touches.length > 1) e.preventDefault(); // Prevent pinch zoom
-            // Prevent scrolling unless it's on an element we explicitly want to scroll
-            e.preventDefault();
+            if (e.touches.length > 1) e.preventDefault(); 
         };
         
         document.addEventListener('touchmove', preventDefault, { passive: false });
@@ -40,7 +38,7 @@ const GameCanvas = () => {
                     default: 'arcade',
                     arcade: {
                         gravity: { y: 600, x: 0 },
-                        debug: true, // You can turn this off later
+                        debug: false, // You can turn this off later
                     },
                 },
             };
@@ -80,7 +78,7 @@ const GameCanvas = () => {
                 w-full h-full 
                 md:w-[1280px] md:h-[600px] 
                 md:max-w-[95vw] md:max-h-[90vh]
-                md:rounded-xl md:border-4 md:border-shin-dark md:shadow-2xl md:ring-1 md:ring-gray-800
+                md:rounded-xl md:shadow-2xl
                 overflow-hidden
                 landscape:block portrait:hidden md:portrait:block
             ">

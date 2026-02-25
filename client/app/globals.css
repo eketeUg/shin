@@ -8,22 +8,40 @@
   --shin-dark: #0a0a0a;
 }
 
-body {
+html, body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-inter), sans-serif;
-  overflow: hidden; /* Prevent scrolling during game */
-  touch-action: none; /* Prevent pull-to-refresh and swipe navigation */
+  user-select: none; /* Prevent text selection on long press */
+  -webkit-user-select: none;
+  -webkit-touch-callout: none; /* Prevent context menu on long press */
+  
+  /* Mobile Overrides */
+  max-width: 100vw;
+  overflow-x: hidden;
+  overscroll-behavior-y: none; /* Prevent pull-to-refresh on mobile */
+  touch-action: pan-x pan-y; /* Prevent pinch zoom but allow scrolling */
+  -webkit-tap-highlight-color: transparent; /* Remove blue tap highlight on iOS */
   user-select: none; /* Prevent text selection on long press */
   -webkit-user-select: none;
   -webkit-touch-callout: none; /* Prevent context menu on long press */
   
   /* Global Watermark */
   background-image: url('/assets/shin_bg.png');
-  background-size: cover;
+  background-size: 150vw auto;
   background-position: center;
   background-repeat: no-repeat;
   background-attachment: fixed;
+  animation: panBackground 90s linear infinite alternate;
+}
+
+@keyframes panBackground {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
 }
 
 
@@ -43,4 +61,26 @@ h1, h2, h3, .font-cinzel {
   box-shadow: 0 0 20px rgba(255, 51, 51, 0.3);
 }
 
+/* Ensure Solana Wallet Modal is always on top of Game UI */
+.wallet-adapter-modal,
+.wallet-adapter-modal-wrapper,
+.wallet-mobile-authorization-modal, /* Added for MobileWalletAdapter specific overlay */
+.wallet-mobile-authorization-modal-overlay {
+  z-index: 99999 !important;
+}
+
+.wallet-adapter-modal-overlay,
+.wallet-adapter-modal-container {
+  z-index: 99998 !important;
+}
+
+  /* Hide Scrollbar for cleaner mobile look */
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  
+  * {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 

@@ -3,16 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "postinstall": "patch-package",
+    "dev": "rm -rf .next && next dev",
+    "build": "rm -rf .next && next build",
+    "start": "rm -rf .next && next start",
+    "mobile": "next build && next start -H 0.0.0.0",
     "lint": "eslint"
   },
   "dependencies": {
     "@metaplex-foundation/mpl-core": "^1.7.0",
+    "@metaplex-foundation/mpl-toolbox": "^0.10.0",
     "@metaplex-foundation/umi": "^1.5.1",
     "@metaplex-foundation/umi-bundle-defaults": "^1.5.1",
     "@metaplex-foundation/umi-signer-wallet-adapters": "^1.5.1",
+    "@solana-mobile/wallet-adapter-mobile": "^2.2.5",
     "@solana/wallet-adapter-base": "^0.9.27",
     "@solana/wallet-adapter-react": "^0.15.39",
     "@solana/wallet-adapter-react-ui": "^0.9.39",
@@ -35,6 +39,8 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "patch-package": "^8.0.1",
+    "postinstall-postinstall": "^2.1.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

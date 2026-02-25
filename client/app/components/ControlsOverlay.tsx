@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { PublicKey } from '@solana/web3.js';
 
-const ControlsOverlay = () => {
+const ControlsOverlay = ({ isSpectator = false, isInteractiveClient = false }: { isSpectator?: boolean, isInteractiveClient?: boolean }) => {
     // Joystick State
     const joystickRef = useRef<HTMLDivElement>(null);
     const [joystickActive, setJoystickActive] = useState(false);
@@ -16,8 +17,21 @@ const ControlsOverlay = () => {
     // Match Timer State
     const [matchTime, setMatchTime] = useState(99);
 
+    // Player Names State
+    const [p1Name, setP1Name] = useState('Player 1');
+    const [p2Name, setP2Name] = useState('Player 2');
+
+    // Round State
+    const [currentRound, setCurrentRound] = useState(1);
+    const [p1Wins, setP1Wins] = useState(0);
+    const [p2Wins, setP2Wins] = useState(0);
+    const [totalRounds, setTotalRounds] = useState(3);
+    const [roundTransitionMsg, setRoundTransitionMsg] = useState<string | null>(null);
+
     // Game Over State
     const [gameOver, setGameOver] = useState<{winner: string, p1Stats: any, p2Stats: any} | null>(null);
+
+
 
     useEffect(() => {
         const handleHealthChange = (e: any) => {
@@ -37,14 +51,49 @@ const ControlsOverlay = () => {
             setMatchTime(e.detail.time);
         };
 
+        const handleMatchStarted = (e: any) => {
+            if (e.detail.p1Name) setP1Name(e.detail.p1Name);
+            if (e.detail.p2Name) setP2Name(e.detail.p2Name);
+            if (e.detail.totalRounds) setTotalRounds(e.detail.totalRounds);
+        };
+
+        const handleRoundUpdate = (e: any) => {
+            setCurrentRound(e.detail.round);
+            setP1Wins(e.detail.p1Wins);
+            setP2Wins(e.detail.p2Wins);
+        };
+
+        const handleRoundStarted = (e: any) => {
+            setRoundTransitionMsg(`ROUND ${e.detail.round}`);
+            setTimeout(() => setRoundTransitionMsg('FIGHT!'), 1500);
+            setTimeout(() => setRoundTransitionMsg(null), 2500);
+        };
+
+        const handleRoundEnded = (e: any) => {
+            setP1Wins(e.detail.p1Wins);
+            setP2Wins(e.detail.p2Wins);
+            if (!e.detail.matchOver) {
+               if (e.detail.winner === 'draw') setRoundTransitionMsg('DRAW');
+               else setRoundTransitionMsg(e.detail.winner === 'p1' ? 'P1 WINS ROUND' : 'P2 WINS ROUND');
+            }
+        };
+
         window.addEventListener('playerHealthChanged', handleHealthChange);
         window.addEventListener('gameOver', handleGameOver);
         window.addEventListener('timerUpdate', handleTimerUpdate);
+        window.addEventListener('matchStarted', handleMatchStarted);
+        window.addEventListener('roundUpdate', handleRoundUpdate);
+        window.addEventListener('roundStarted', handleRoundStarted);
+        window.addEventListener('roundEnded', handleRoundEnded);
         
         return () => {
             window.removeEventListener('playerHealthChanged', handleHealthChange);
             window.removeEventListener('gameOver', handleGameOver);
             window.removeEventListener('timerUpdate', handleTimerUpdate);
+            window.removeEventListener('matchStarted', handleMatchStarted);
+            window.removeEventListener('roundUpdate', handleRoundUpdate);
+            window.removeEventListener('roundStarted', handleRoundStarted);
+            window.removeEventListener('roundEnded', handleRoundEnded);
         };
     }, []);
 
@@ -102,35 +151,40 @@ const ControlsOverlay = () => {
         window.dispatchEvent(new CustomEvent('joystickInput', { detail: { left: false, right: false, up: false, down: false } }));
     };
 
+
+
     return (
         <div className="absolute inset-0 pointer-events-none select-none">
             {/* Joystick Area (Bottom Left) */}
-            <div 
-                className="absolute w-24 h-24 bg-white/10 rounded-full backdrop-blur-sm pointer-events-auto touch-none flex items-center justify-center border-2 border-white/20"
-                style={{
-                    bottom: 'max(1.5rem, env(safe-area-inset-bottom))',
-                    left: 'max(1.5rem, env(safe-area-inset-left))'
-                }}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                ref={joystickRef}
-            >
-                {/* Thumb */}
+            {(!isSpectator || isInteractiveClient) && (
                 <div 
-                    className="w-12 h-12 bg-white/50 rounded-full shadow-lg transform transition-transform duration-75"
-                    style={{ transform: `translate(${joystickPos.x}px, ${joystickPos.y}px)` }}
-                />
-            </div>
+                    className="absolute w-24 h-24 bg-white/10 rounded-full backdrop-blur-sm pointer-events-auto touch-none flex items-center justify-center border-2 border-white/20"
+                    style={{
+                        bottom: 'max(1.5rem, env(safe-area-inset-bottom))',
+                        left: 'max(1.5rem, env(safe-area-inset-left))'
+                    }}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    ref={joystickRef}
+                >
+                    {/* Thumb */}
+                    <div 
+                        className="w-12 h-12 bg-white/50 rounded-full shadow-lg transform transition-transform duration-75"
+                        style={{ transform: `translate(${joystickPos.x}px, ${joystickPos.y}px)` }}
+                    />
+                </div>
+            )}
 
             {/* Action Buttons (Bottom Right, XABY Diamond Layout - Clockwise starting from Top=X) */}
-            <div 
-                className="absolute w-36 h-36 pointer-events-auto select-none"
-                style={{
-                    bottom: 'max(1.5rem, env(safe-area-inset-bottom))',
-                    right: 'max(1.5rem, env(safe-area-inset-right))'
-                }}
-            >
+            {(!isSpectator || isInteractiveClient) && (
+                <div 
+                    className="absolute w-36 h-36 pointer-events-auto select-none"
+                    style={{
+                        bottom: 'max(1.5rem, env(safe-area-inset-bottom))',
+                        right: 'max(1.5rem, env(safe-area-inset-right))'
+                    }}
+                >
                 {/* X Button (Top) - Blue */}
                 <button 
                     className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-black/40 border-2 border-blue-500/30 active:scale-90 transition-transform shadow-lg flex items-center justify-center backdrop-blur-sm"
@@ -162,6 +216,7 @@ const ControlsOverlay = () => {
                     <span className="text-green-500/80 font-bold text-xl drop-shadow-md">Y</span>
                 </button>
             </div>
+            )}
 
              {/* HUD (Top) */}
              <div 
@@ -176,12 +231,17 @@ const ControlsOverlay = () => {
                 <div className="flex items-center gap-2">
                     <div className="w-12 h-12 rounded-full bg-gray-700/50 border-2 border-white/20 backdrop-blur-sm"></div>
                     <div>
-                         <div className="text-white/80 font-bold text-sm shadow-black drop-shadow-md">Player 1</div>
+                         <div className="text-white/80 font-bold text-sm shadow-black drop-shadow-md tracking-widest uppercase">{p1Name.length > 10 ? p1Name.substring(0, 10) + '...' : p1Name}</div>
                          <div className="w-32 h-3 bg-gray-900/60 rounded-full border border-gray-600/50 overflow-hidden backdrop-blur-sm">
                             <div 
                                 className="h-full bg-gradient-to-r from-green-500/80 to-emerald-400/80 transition-all duration-200"
                                 style={{ width: `${(p1Health.hp / p1Health.maxHp) * 100}%` }}
                             ></div>
+                         </div>
+                         <div className="flex gap-1 mt-1">
+                             {Array.from({ length: Math.floor(totalRounds / 2) + 1 }).map((_, i) => (
+                                 <div key={`p1-win-${i}`} className={`w-3 h-3 rounded-full border border-gray-500 ${i < p1Wins ? 'bg-shin-gold shadow-[0_0_8px_rgba(212,175,55,0.8)]' : 'bg-black/50'}`} />
+                             ))}
                          </div>
                     </div>
                 </div>
@@ -195,16 +255,32 @@ const ControlsOverlay = () => {
                 <div className="flex items-center gap-2 flex-row-reverse">
                     <div className="w-12 h-12 rounded-full bg-gray-700/50 border-2 border-white/20 backdrop-blur-sm"></div>
                     <div className="text-right">
-                         <div className="text-white/80 font-bold text-sm shadow-black drop-shadow-md">Player 2</div>
+                         <div className="text-white/80 font-bold text-sm shadow-black drop-shadow-md tracking-widest uppercase">{p2Name}</div>
                          <div className="w-32 h-3 bg-gray-900/60 rounded-full border border-gray-600/50 overflow-hidden flex justify-end backdrop-blur-sm">
                             <div 
                                 className="h-full bg-gradient-to-l from-red-500/80 to-orange-400/80 transition-all duration-200"
                                 style={{ width: `${(p2Health.hp / p2Health.maxHp) * 100}%` }}
                             ></div>
                          </div>
+                         <div className="flex gap-1 mt-1 justify-end">
+                             {Array.from({ length: Math.floor(totalRounds / 2) + 1 }).map((_, i) => (
+                                 <div key={`p2-win-${i}`} className={`w-3 h-3 rounded-full border border-gray-500 ${i < p2Wins ? 'bg-shin-gold shadow-[0_0_8px_rgba(212,175,55,0.8)]' : 'bg-black/50'}`} />
+                             ))}
+                         </div>
                     </div>
                 </div>
              </div>
+
+             {/* Round Transition Pop-up */}
+             {roundTransitionMsg && !gameOver && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40">
+                    <h1 className="text-5xl md:text-7xl text-shin-gold font-cinzel font-black drop-shadow-[0_0_20px_rgba(0,0,0,1)] tracking-widest uppercase animate-in zoom-in duration-300">
+                        {roundTransitionMsg}
+                    </h1>
+                </div>
+             )}
+
+
 
              {/* Game Over Pop-up */}
              {gameOver && (
@@ -232,9 +308,15 @@ const ControlsOverlay = () => {
                          
                          <button 
                             className="px-6 py-2 bg-red-600/80 border border-red-500 text-white font-bold rounded hover:bg-red-500 transition-colors shadow-lg" 
-                            onClick={() => window.location.reload()}
+                            onClick={() => {
+                                if (isSpectator) {
+                                    window.dispatchEvent(new CustomEvent('leaveSpectator'));
+                                } else {
+                                    window.location.reload();
+                                }
+                            }}
                          >
-                            REMATCH
+                            {isSpectator ? 'CLOSE' : 'REMATCH'}
                          </button>
                     </div>
                 </div>
