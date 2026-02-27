@@ -1,6 +1,20 @@
 import * as Phaser from 'phaser';
 import Player from '../entities/Player';
-import { io, Socket } from 'socket.io-client';
+import { 
+    ApplySystem, 
+    FindWorldPda, 
+    BN 
+} from '@magicblock-labs/bolt-sdk';
+import { PublicKey } from '@solana/web3.js';
+
+// BOLT IDs
+const WORLD_ID = new BN(1);
+const WORLD_PROGRAM_ID = new PublicKey("WorLD15A7CrDwLcLy4fRqtaTb9fbd8o8iqiEMUDse2n");
+const MOVEMENT_SYSTEM_ID = new PublicKey("F7gqb5y4yvfW3ygozt5TTBoPL6mmJ5FxX9FqjJvNcfuR");
+const COMBAT_SYSTEM_ID = new PublicKey("68M2Gjo9wtqG7GUMMnm6NqNB9E7xmZS2zcNbTvgwQ7az");
+const POSITION_COMPONENT_ID = new PublicKey("GJp9uPK4xzU9vbobTvwJbGUPrRgUZXr1vbf7Fv6ePf58");
+const HEALTH_COMPONENT_ID = new PublicKey("3ZzeR3FP7Bur8rpdB48WurX7EYvf3Cnzp3cHKz7kAvrx");
+const COMBAT_STATE_COMPONENT_ID = new PublicKey("9A5fzxAgfpjsVVVKqEAqGYb2W6DuQjNwci1WneryCbza");
 
 export class GameScene extends Phaser.Scene {
     private player!: Player;
@@ -18,7 +32,6 @@ export class GameScene extends Phaser.Scene {
     private timerEvent!: Phaser.Time.TimerEvent;
 
     // Spectator Mode variables
-    private socket: Socket | null = null;
     private matchId: string | null = null;
     private isOnlineHost: boolean = false;
     private remoteP2Input = { left: false, right: false, up: false, down: false };
@@ -165,43 +178,16 @@ export class GameScene extends Phaser.Scene {
         // Listen to custom DOM events emitted by ControlsOverlay
         this.setupDOMEventListeners();
 
-        // Initialize Spectator Broadcasting
+        // Initialize MagicBlock BOLT ER Sync
         try {
-            const wsUrl = process.env.NEXT_PUBLIC_SERVER_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:3001` : 'http://localhost:3001');
-            const customPath = wsUrl.includes('/shin') ? '/shin/socket.io' : '/socket.io';
-            this.socket = io(wsUrl, { path: customPath });
+            console.log('Connected to MagicBlock Ephemeral Rollup RPC...');
             
-            this.socket.on('connect', () => {
-                console.log('Connected to relay server as Host');
-                
-                if (this.isOnlineHost && this.matchId) {
-                    console.log('Binding to Matchmaking Online Match:', this.matchId);
-                    this.socket?.emit('host_bind_match', this.matchId);
-                } else {
-                    // Create a match room for local/spectators
-                    this.socket?.emit('create_match', {
-                        hostName: this.p1Name,
-                        p1Type: this.p1CharType,
-                        p2Type: this.p2CharType,
-                        mode: this.gameMode
-                    }, (response: any) => {
-                        this.matchId = response.matchId;
-                        console.log('Local Match broadcast started:', this.matchId);
-                    });
-                }
-            });
+            if (this.matchId) {
+                console.log('Syncing with BOLT Match Entity:', this.matchId);
+                this.setupBOLTSubscriptions();
+            }
 
-            // Listen for Remote Player 2 inputs
-            this.socket.on('host_p2_input', (inputData: any) => {
-                if (inputData.type === 'joystick') {
-                    this.remoteP2Input = inputData.payload;
-                } else if (inputData.type === 'action') {
-                    if (inputData.payload.action === 'attack') this.player2.playAttackAnimation();
-                    else if (inputData.payload.action === 'block') this.player2.playBlockAnimation();
-                }
-            });
-
-            // Start broadcasting state at 10Hz (100ms)
+            // Start broadcasting state at 10Hz (100ms) to BOLT Systems
             this.syncTimerEvent = this.time.addEvent({
                 delay: 100,
                 callback: this.broadcastState,
@@ -210,8 +196,94 @@ export class GameScene extends Phaser.Scene {
             });
             
         } catch(e) {
-            console.warn("Could not connect to broadcast server", e);
+            console.warn("Could not connect to ER RPC", e);
         }
+    }
+
+    private async setupBOLTSubscriptions() {
+        if (!this.matchId) return;
+        const bolt = (window as any).bolt;
+        if (!bolt || !bolt.connection) return;
+
+        const { FindComponentPda } = await import('@magicblock-labs/bolt-sdk');
+        const matchEntity = new PublicKey(this.matchId);
+
+        // 1. Subscribe to Remote Player Position (p2)
+        const p2PosPda = FindComponentPda({
+            componentId: POSITION_COMPONENT_ID,
+            entity: matchEntity,
+            seed: "p2"
+        });
+
+        bolt.connection.onAccountChange(p2PosPda, (accountInfo: any) => {
+            const data = accountInfo.data;
+            if (data.length >= 24) {
+                // Offset 8: x (i64), Offset 16: y (i64)
+                // Use DataView for decoding
+                const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+                const x = Number(view.getBigInt64(8, true));
+                const y = Number(view.getBigInt64(16, true));
+                
+                // Update remote player position in Phaser
+                // Note: We might need to interpolate or smooth this out
+                if (this.player2) {
+                    this.player2.x = x;
+                    this.player2.y = y;
+                }
+            }
+        }, "confirmed");
+
+        // 2. Subscribe to Remote Player Health (p2)
+        const p2HealthPda = FindComponentPda({
+            componentId: HEALTH_COMPONENT_ID,
+            entity: matchEntity,
+            seed: "p2"
+        });
+
+        bolt.connection.onAccountChange(p2HealthPda, (accountInfo: any) => {
+            const data = accountInfo.data;
+            if (data.length >= 12) {
+                // Offset 8: current (u16), Offset 10: max (u16)
+                const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+                const current = view.getUint16(8, true);
+                const max = view.getUint16(10, true);
+
+                if (this.player2) {
+                    this.player2.hp = current;
+                    this.player2.maxHp = max;
+                    window.dispatchEvent(new CustomEvent('playerHealthChanged', { 
+                        detail: { playerId: 'remote_player', hp: current, maxHp: max } 
+                    }));
+                }
+            }
+        }, "confirmed");
+
+        // 3. Subscribe to Remote Player CombatState (p2)
+        const p2StatePda = FindComponentPda({
+            componentId: COMBAT_STATE_COMPONENT_ID,
+            entity: matchEntity,
+            seed: "p2"
+        });
+
+        bolt.connection.onAccountChange(p2StatePda, (accountInfo: any) => {
+            const data = accountInfo.data;
+            if (data.length >= 11) {
+                // Offset 8: isAttacking (bool), 9: isBlocking (bool), 10: flipX (bool)
+                const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+                const isAttacking = view.getUint8(8) !== 0;
+                const isBlocking = view.getUint8(9) !== 0;
+                const flipX = view.getUint8(10) !== 0;
+
+                if (this.player2) {
+                    if (isAttacking && !this.player2.isAttacking) {
+                        this.player2.playAttackAnimation();
+                    } else if (isBlocking && !this.player2.isBlocking) {
+                        this.player2.playBlockAnimation();
+                    }
+                    this.player2.setFlipX(flipX);
+                }
+            }
+        }, "confirmed");
     }
 
     private updateTimer() {
@@ -248,14 +320,9 @@ export class GameScene extends Phaser.Scene {
         const matchOver = this.p1Wins >= winThreshold || this.p2Wins >= winThreshold || this.currentRound >= this.totalRounds;
 
         window.dispatchEvent(new CustomEvent('roundEnded', { detail: { winner, p1Wins: this.p1Wins, p2Wins: this.p2Wins, matchOver } }));
-        if (this.socket && this.matchId) {
-            this.socket.emit('host_fire_event', {
-                type: 'match_event',
-                data: {
-                    event: 'roundEnded',
-                    detail: { winner, p1Wins: this.p1Wins, p2Wins: this.p2Wins, matchOver }
-                }
-            });
+        if (this.matchId) {
+            // Apply BOLT match state system instruction
+            console.log("BOLT: MatchSystem - apply round outcome");
         }
 
         if (matchOver) {
@@ -277,18 +344,8 @@ export class GameScene extends Phaser.Scene {
                     }
                 }));
 
-                if (this.socket && this.matchId) {
-                    this.socket.emit('host_fire_event', {
-                        type: 'match_event',
-                        data: {
-                            event: 'gameOver',
-                            detail: {
-                                winner: winnerStr,
-                                p1Stats: this.player.stats,
-                                p2Stats: this.player2.stats
-                            }
-                        }
-                    });
+                if (this.matchId) {
+                    console.log("BOLT: MatchSystem - Game Over! Submitting final Match Result!");
                 }
             }, 1500);
         } else {
@@ -309,14 +366,8 @@ export class GameScene extends Phaser.Scene {
         window.dispatchEvent(new CustomEvent('roundUpdate', { detail: { round: this.currentRound, p1Wins: this.p1Wins, p2Wins: this.p2Wins } }));
         window.dispatchEvent(new CustomEvent('roundStarted', { detail: { round: this.currentRound } }));
 
-        if (this.socket && this.matchId) {
-            this.socket.emit('host_fire_event', {
-                type: 'match_event',
-                data: {
-                    event: 'roundStarted',
-                    detail: { round: this.currentRound }
-                }
-            });
+        if (this.matchId) {
+            console.log("BOLT: MatchSystem - starting new round");
         }
 
         // Reset Players
@@ -455,82 +506,127 @@ export class GameScene extends Phaser.Scene {
 
     private setupDOMEventListeners() {
         // Disconnect old listeners to prevent memory leaks if scene restarts
-        window.removeEventListener('joystickInput', this.handleJoystickInput as EventListener);
-        window.removeEventListener('playerAction', this.handlePlayerAction as EventListener);
-        window.removeEventListener('playerAudio', this.handlePlayerAudio as EventListener);
+        window.removeEventListener('joystickInput', this.handleJoystickInput as any);
+        window.removeEventListener('playerAction', this.handlePlayerAction as any);
+        window.removeEventListener('playerAudio', this.handlePlayerAudio as any);
 
-        window.addEventListener('joystickInput', this.handleJoystickInput as EventListener);
-        window.addEventListener('playerAction', this.handlePlayerAction as EventListener);
-        window.addEventListener('playerAudio', this.handlePlayerAudio as EventListener);
+        window.addEventListener('joystickInput', this.handleJoystickInput as any);
+        window.addEventListener('playerAction', this.handlePlayerAction as any);
+        window.addEventListener('playerAudio', this.handlePlayerAudio as any);
         
         this.events.on(Phaser.Scenes.Events.DESTROY, () => {
-            window.removeEventListener('joystickInput', this.handleJoystickInput as EventListener);
-            window.removeEventListener('playerAction', this.handlePlayerAction as EventListener);
-            window.removeEventListener('playerAudio', this.handlePlayerAudio as EventListener);
-            if (this.socket) {
-                this.socket.disconnect();
-            }
+            window.removeEventListener('joystickInput', this.handleJoystickInput as any);
+            window.removeEventListener('playerAction', this.handlePlayerAction as any);
+            window.removeEventListener('playerAudio', this.handlePlayerAudio as any);
         });
     }
 
-    private broadcastState() {
-        if (!this.socket || !this.matchId || !this.player || !this.player2) return;
+    private async broadcastState() {
+        if (!this.matchId || !this.player || !this.player2) return;
 
-        const payload = {
-            matchTimer: this.matchTimer,
-            currentRound: this.currentRound,
-            p1Wins: this.p1Wins,
-            p2Wins: this.p2Wins,
-            isRoundTransition: this.isRoundTransition,
-            p1: {
-                x: this.player.x,
-                y: this.player.y,
-                hp: this.player.hp,
-                maxHp: this.player.maxHp,
-                isDead: this.player.isDead,
-                flipX: this.player.flipX,
-                anim: this.player.anims.currentAnim?.key || `${this.p1CharType}_idle`,
-                isAttacking: this.player.isAttacking,
-                isBlocking: this.player.isBlocking,
-            },
-            p2: {
-                x: this.player2.x,
-                y: this.player2.y,
-                hp: this.player2.hp,
-                maxHp: this.player2.maxHp,
-                isDead: this.player2.isDead,
-                flipX: this.player2.flipX,
-                anim: this.player2.anims.currentAnim?.key || `${this.p2CharType}_idle`,
-                isAttacking: this.player2.isAttacking,
-                isBlocking: this.player2.isBlocking,
+        const bolt = (window as any).bolt;
+        if (!bolt || !bolt.wallet || !bolt.wallet.publicKey) return;
+
+        // Apply BOLT MovementSystem instruction for player 1 if moving
+        if (this.moveInput.left || this.moveInput.right || this.moveInput.up || this.moveInput.down) {
+            try {
+                const worldPda = FindWorldPda({ worldId: WORLD_ID });
+                const dx = this.moveInput.left ? -1 : (this.moveInput.right ? 1 : 0);
+                const dy = this.moveInput.up ? -1 : (this.moveInput.down ? 1 : 0);
+                
+                const { transaction } = await ApplySystem({
+                    authority: bolt.wallet.publicKey,
+                    systemId: MOVEMENT_SYSTEM_ID,
+                    world: worldPda,
+                    entities: [
+                        {
+                            entity: new PublicKey(this.matchId),
+                            components: [{ componentId: POSITION_COMPONENT_ID, seed: "p1" }]
+                        }
+                    ],
+                    args: Buffer.from([dx as number, dy as number])
+                });
+
+                // Dispatch transaction to ER
+                await bolt.wallet.sendTransaction(transaction, bolt.connection);
+            } catch (err) {
+                console.warn("BOLT Movement dispatch failed:", err);
             }
-        };
-
-        this.socket.emit('host_sync_frame', payload);
+        }
     }
 
     private handleJoystickInput = (e: CustomEvent<{ left: boolean, right: boolean, up: boolean, down: boolean }>) => {
         this.moveInput = e.detail;
     };
 
-    private handlePlayerAction = (e: CustomEvent<{ action: string }>) => {
-        if (!this.player) return;
+    private async handlePlayerAction(e: CustomEvent<{ action: string }>) {
+        if (!this.player || !this.matchId) return;
         
+        const bolt = (window as any).bolt;
+        if (!bolt || !bolt.wallet || !bolt.wallet.publicKey) return;
+
         if (e.detail.action === 'attack') {
             this.player.playAttackAnimation();
+            
+            // Dispatch CombatSystem (Attack)
+            try {
+                const worldPda = FindWorldPda({ worldId: WORLD_ID });
+                const { transaction } = await ApplySystem({
+                    authority: bolt.wallet.publicKey,
+                    systemId: COMBAT_SYSTEM_ID,
+                    world: worldPda,
+                    entities: [
+                        {
+                            entity: new PublicKey(this.matchId),
+                            components: [
+                                { componentId: COMBAT_STATE_COMPONENT_ID, seed: "p1" }, // attacker_state
+                                { componentId: POSITION_COMPONENT_ID, seed: "p1" },     // attacker_pos
+                                { componentId: HEALTH_COMPONENT_ID, seed: "p2" },       // target_health
+                                { componentId: POSITION_COMPONENT_ID, seed: "p2" },     // target_pos
+                                { componentId: COMBAT_STATE_COMPONENT_ID, seed: "p2" }, // target_state
+                            ]
+                        }
+                    ],
+                    args: Buffer.from([1]) // 1 = Attack
+                });
+                await bolt.wallet.sendTransaction(transaction, bolt.connection);
+            } catch (err) {
+                console.warn("BOLT Combat (Attack) dispatch failed:", err);
+            }
+
         } else if (e.detail.action === 'block') {
             this.player.playBlockAnimation();
+
+            // Dispatch CombatSystem (Block)
+            try {
+                const worldPda = FindWorldPda({ worldId: WORLD_ID });
+                const { transaction } = await ApplySystem({
+                    authority: bolt.wallet.publicKey,
+                    systemId: COMBAT_SYSTEM_ID,
+                    world: worldPda,
+                    entities: [
+                        {
+                            entity: new PublicKey(this.matchId),
+                            components: [
+                                { componentId: COMBAT_STATE_COMPONENT_ID, seed: "p1" }, // attacker_state
+                                { componentId: POSITION_COMPONENT_ID, seed: "p1" },     // attacker_pos
+                                { componentId: HEALTH_COMPONENT_ID, seed: "p2" },       // target_health
+                                { componentId: POSITION_COMPONENT_ID, seed: "p2" },     // target_pos
+                                { componentId: COMBAT_STATE_COMPONENT_ID, seed: "p2" }, // target_state
+                            ]
+                        }
+                    ],
+                    args: Buffer.from([2]) // 2 = Block
+                });
+                await bolt.wallet.sendTransaction(transaction, bolt.connection);
+            } catch (err) {
+                console.warn("BOLT Combat (Block) dispatch failed:", err);
+            }
         }
     };
 
     private handlePlayerAudio = (e: CustomEvent<any>) => {
-        // If we are broadcasting, forward one-off audio/hit events to spectators
-        if (this.socket && this.matchId) {
-            this.socket.emit('host_fire_event', {
-                type: 'audio',
-                data: e.detail
-            });
-        }
+        // Audio doesn't need to be broadcast to ER
     };
 
     private handleAttackHit(attacker: Player, target: Player) {

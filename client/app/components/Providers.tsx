@@ -11,6 +11,7 @@ import { UmiProvider } from './UmiProvider';
 
 // Default styles that can be overridden by your app
 import '@solana/wallet-adapter-react-ui/styles.css';
+import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 
 interface NetworkContextState {
     network: WalletAdapterNetwork;
@@ -21,12 +22,28 @@ const NetworkContext = createContext<NetworkContextState>({} as NetworkContextSt
 
 export const useNetwork = () => useContext(NetworkContext);
 
+function BoltSync() {
+    const { connection } = useConnection();
+    const wallet = useWallet();
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            (window as any).bolt = { connection, wallet };
+        }
+    }, [connection, wallet]);
+
+    return null;
+}
+
 export default function Providers({ children }: { children: React.ReactNode }) {
     const [network, setNetwork] = useState<WalletAdapterNetwork>(WalletAdapterNetwork.Devnet);
 
-
     // You can also provide a custom RPC endpoint.
-    const endpoint = useMemo(() => clusterApiUrl(network), [network]);
+    const endpoint = useMemo(() => {
+        if (network === WalletAdapterNetwork.Mainnet) return clusterApiUrl(network);
+        if (network === WalletAdapterNetwork.Devnet) return "https://devnet.helius-rpc.com/?api-key=a2b67de4-de35-4629-ac8c-20c919c6e7d5";
+        return "http://127.0.0.1:8899"; // Localnet
+    }, [network]);
 
     const [isMobile, setIsMobile] = useState(false);
 
@@ -74,6 +91,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         <NetworkContext.Provider value={{ network, setNetwork }}>
             <ConnectionProvider endpoint={endpoint}>
                 <WalletProvider wallets={wallets} autoConnect>
+                    <BoltSync />
                     <UmiProvider>
                         <WalletModalProvider>{children}</WalletModalProvider>
                     </UmiProvider>

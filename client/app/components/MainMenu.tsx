@@ -114,7 +114,8 @@ const MainMenu = ({ onStart, onWatchLive, isMuted, onToggleMute }: MainMenuProps
     if (activeModal === 'lobby') {
        const wsUrl = process.env.NEXT_PUBLIC_SERVER_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:3001` : 'http://localhost:3001');
        const customPath = wsUrl.includes('/shin') ? '/shin/socket.io' : '/socket.io';
-       newSocket = io(wsUrl, { path: customPath });
+       const origin = new URL(wsUrl).origin;
+       newSocket = io(origin, { path: customPath });
        setSocket(newSocket);
 
        newSocket.on('connect', () => {

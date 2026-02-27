@@ -22,7 +22,8 @@ const LiveFightsFlow: React.FC<LiveFightsFlowProps> = ({ onWatchMatch, onBack })
   useEffect(() => {
      const wsUrl = process.env.NEXT_PUBLIC_SERVER_URL || (typeof window !== 'undefined' ? `http://${window.location.hostname}:3001` : 'http://localhost:3001');
      const customPath = wsUrl.includes('/shin') ? '/shin/socket.io' : '/socket.io';
-     const s = io(wsUrl, { path: customPath });
+     const origin = new URL(wsUrl).origin;
+     const s = io(origin, { path: customPath });
      
      s.on('connect', () => {
          s.emit('get_active_matches');
